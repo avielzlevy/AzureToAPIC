@@ -1,24 +1,17 @@
-//SOAP (apiType field)
-//SERVICEURL
-//if not v3 then v2
-//select environment
-//make sure documents is being created
-
 const { ApiManagementClient } = require("@azure/arm-apimanagement");
 const { ClientSecretCredential } = require("@azure/identity");
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
 process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;  // Ignore SSL certificate errors
 const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
-const path = require("path");
 const argv = yargs(hideBin(process.argv)).argv;
 const env = argv.env || 'test';
 console.log(`Environment: ${env}`);
 const envFilePath = env === 'prod' ? '.env.prod' : '.env.test';
 require('dotenv').config({ path: envFilePath });
-let subscriptionId, resourceGroupName, serviceName
+let subscriptionId, resourceGroupName;
+let serviceName = argv.serviceName || 'datos';
 switch (serviceName) {
     case 'datos':
         subscriptionId = process.env["APIMANAGEMENT_SUBSCRIPTION_ID"]
@@ -30,8 +23,7 @@ const apiConnectBaseUrl = process.env["API_CONNECT_BASE_URL"]
 const apiConnectOrgName = process.env["API_CONNECT_ORG_NAME"]
 
 function ensureDirectoryExistence(filePath) {
-    const dirname = require('path').dirname(filePath);
-    if (fs.existsSync(dirname)) {
+    if (fs.existsSync(filePath)) {
         return true;
     }
     try {
@@ -82,10 +74,13 @@ async function exportAndImportAPIs() {
             let swaggerUrl = await getAPI(client, apiId, 'v3', apiType);
             // Fetch the Swagger JSON from the export link
             let swaggerResponse = await axios.get(swaggerUrl);
+            swaggerResponse.data.servers[0].url = backendUrl + basePath;
             if (![200, 304].includes(swaggerResponse.status)) {
                 console.log(`Failed exporting as v3, trying v2`);
                 swaggerUrl = await getAPI(client, apiId, 'v2', apiType);
                 swaggerResponse = await axios.get(swaggerUrl);
+                swaggerResponse.data.host = backendUrl;
+                swaggerResponse.data.basePath = basePath;
             }
             const swaggerContent = swaggerResponse.data;
 
@@ -160,5 +155,4 @@ async function importToAPIConnect(swaggerContent) {
 }
 
 // Start the export and import process
-ensureDirectoryExistence(`./${serviceName}_documents/`);
-// exportAndImportAPIs().catch(console.error);
+exportAndImportAPIs().catch(console.error);
