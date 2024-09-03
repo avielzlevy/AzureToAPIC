@@ -11,11 +11,12 @@ const fs = require('fs');
 process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;  // Ignore SSL certificate errors
 const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
+const path = require("path");
 const argv = yargs(hideBin(process.argv)).argv;
 const env = argv.env || 'test';
 console.log(`Environment: ${env}`);
 const envFilePath = env === 'prod' ? '.env.prod' : '.env.test';
-dotenv.config({ path: envFilePath });
+require("dotenv").config({ path: envFilePath });
 const subscriptionId = process.env["APIMANAGEMENT_SUBSCRIPTION_ID"]
 const resourceGroupName = process.env["APIMANAGEMENT_RESOURCE_GROUP"]
 const serviceName = process.env["APIMANAGEMENT_SERVICE_NAME"]
@@ -23,26 +24,30 @@ const apiConnectBaseUrl = process.env["API_CONNECT_BASE_URL"]
 const apiConnectOrgName = process.env["API_CONNECT_ORG_NAME"]
 
 function ensureDirectoryExistence(filePath) {
-    const dirname = require('path').dirname(filePath);
-    if (fs.existsSync(dirname)) {
+    if (fs.existsSync(filePath)) {
         return true;
     }
-    fs.mkdirSync(dirname, { recursive: true });
+    try {
+        fs.mkdirSync(filePath, { recursive: true });
+    } catch (err) {
+        console.log({ err })
+    }
 }
 
-async function getAPI(apiId,version,apiType=undefined) {
+async function getAPI(client, apiId, version, apiType = undefined) {
     const format = version === 'v3' ? 'openapi+json-link' : 'swagger-link ';
     // const format = version === 'v3' ? 'openapi+json-link' : apiType === 'soap' ? 'wsdl-link' : 'swagger-link';
     console.log(`Exporting API: ${apiId}`);
-            const result = await client.apiExport.get(
-                resourceGroupName,
-                serviceName,
-                apiId,
-                format,
-                exportParam = "true"
-            );
-            const swaggerUrl = result.properties.value.link;
-            return swaggerUrl;
+    const result = await client.apiExport.get(
+        resourceGroupName,
+        serviceName,
+        apiId,
+        format,
+        exportParam = "true"
+    );
+    console.log({ result: result.properties.value.link })
+    const swaggerUrl = result.properties.value.link;
+    return swaggerUrl;
 }
 
 // Updated exportAndImportAPIs function
@@ -68,16 +73,17 @@ async function exportAndImportAPIs() {
         const basePath = api.path;
         // Export API to a Swagger link
         try {
-            let swaggerUrl = await getAPI(apiId,'v3',apiType);
+            let swaggerUrl = await getAPI(client, apiId, 'v3', apiType);
             // Fetch the Swagger JSON from the export link
             let swaggerResponse = await axios.get(swaggerUrl);
-            if(swaggerContent.statusCode !== 200){
+            console.log(swaggerResponse.status)
+            if (![200, 304].includes(swaggerResponse.status)) {
                 console.log(`Failed exporting as v3, trying v2`);
-                swaggerUrl = await getAPI(apiId,'v2',apiType);
+                swaggerUrl = await getAPI(client, apiId, 'v2', apiType);
                 swaggerResponse = await axios.get(swaggerUrl);
             }
             const swaggerContent = swaggerResponse.data;
-            
+
             // Ensure the directory exists
             ensureDirectoryExistence(`./${serviceName}_documents/`);
 
