@@ -25,7 +25,10 @@ async function exportAndImportAPIs() {
     const client = new ApiManagementClient(credential, subscriptionId);
 
     // List all APIs in the API Management service
-    const apis = client.api.listByService(resourceGroupName, serviceName);
+    const apis = new Array();
+    for await (let item of client.api.listByService(resourceGroupName, serviceName)) {
+        apis.push(item);
+    }
     for (const api of apis) {
         const apiId = api.name;
         const format = "swagger-link";
