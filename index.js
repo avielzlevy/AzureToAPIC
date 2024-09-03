@@ -26,6 +26,7 @@ async function exportAndImportAPIs() {
         tenantId: "<YOUR_TENANT_ID>",
         clientId: "<YOUR_CLIENT_ID>",
       });
+    console.log({credential})
     const client = new ApiManagementClient(credential, subscriptionId);
 
     // List all APIs in the API Management service
