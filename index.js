@@ -1,7 +1,8 @@
 const { ApiManagementClient } = require("@azure/arm-apimanagement");
-const { DefaultAzureCredential, InteractiveBrowserCredential } = require("@azure/identity");
+const { DefaultAzureCredential, ClientSecretCredential } = require("@azure/identity");
 const axios = require('axios');
 const fs = require('fs');
+const { resolve } = require("path");
 require('dotenv').config();  // To use environment variables from a .env file
 process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;  // Ignore SSL certificate errors
 
@@ -27,9 +28,9 @@ async function exportAndImportAPIs() {
     //     clientId: "<YOUR_CLIENT_ID>",
     // });
     const credential = new ClientSecretCredential(
-        "<YOUR_TENANT_ID>",
-        "<YOUR_CLIENT_ID>",
-        "<YOUR_CLIENT_SECRET>"
+        process.env["ARM_TENANT_ID"],
+        process.env["ARM_TEST_CLIENT_ID"],
+        process.env["ARM_TEST_CLIENT_SECRET"]
     );
     console.log({ credential })
     const client = new ApiManagementClient(credential, subscriptionId);
@@ -42,7 +43,9 @@ async function exportAndImportAPIs() {
     console.log({ apis })
     for (const api of apis) {
         const apiId = api.name;
-        const format = "swagger-link";
+        const backendUrl = api.serviceUrl;
+        const basePath = api.path;
+        const format = "openapi+json-link";
         const exportParam = "true";
 
         // Export API to a Swagger link
@@ -55,7 +58,7 @@ async function exportAndImportAPIs() {
                 format,
                 exportParam
             );
-            const swaggerUrl = result.value.link;
+            const swaggerUrl = result.properties.value.link;
 
             // Fetch the Swagger JSON from the export link
             const swaggerResponse = await axios.get(swaggerUrl);
@@ -70,7 +73,7 @@ async function exportAndImportAPIs() {
             console.log(`Swagger file written to ${filePath}`);
 
             // Import the Swagger JSON to IBM API Connect
-            await importToAPIConnect(apiId, swaggerContent);
+            // await importToAPIConnect(apiId, swaggerContent);
         } catch (error) {
             console.error(`Error exporting or importing API ${apiId}:`, error.message);
         }
