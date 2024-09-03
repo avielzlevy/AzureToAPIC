@@ -8,6 +8,7 @@ const { ApiManagementClient } = require("@azure/arm-apimanagement");
 const { ClientSecretCredential } = require("@azure/identity");
 const axios = require('axios');
 const fs = require('fs');
+const path = require('path');
 process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;  // Ignore SSL certificate errors
 const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
@@ -16,15 +17,21 @@ const argv = yargs(hideBin(process.argv)).argv;
 const env = argv.env || 'test';
 console.log(`Environment: ${env}`);
 const envFilePath = env === 'prod' ? '.env.prod' : '.env.test';
-require("dotenv").config({ path: envFilePath });
-const subscriptionId = process.env["APIMANAGEMENT_SUBSCRIPTION_ID"]
-const resourceGroupName = process.env["APIMANAGEMENT_RESOURCE_GROUP"]
-const serviceName = process.env["APIMANAGEMENT_SERVICE_NAME"]
+require('dotenv').config({ path: envFilePath });
+let subscriptionId, resourceGroupName, serviceName
+switch (serviceName) {
+    case 'datos':
+        subscriptionId = process.env["APIMANAGEMENT_SUBSCRIPTION_ID"]
+        resourceGroupName = process.env["APIMANAGEMENT_RESOURCE_GROUP"]
+        serviceName = process.env["APIMANAGEMENT_SERVICE_NAME"]
+        break;
+}
 const apiConnectBaseUrl = process.env["API_CONNECT_BASE_URL"]
 const apiConnectOrgName = process.env["API_CONNECT_ORG_NAME"]
 
 function ensureDirectoryExistence(filePath) {
-    if (fs.existsSync(filePath)) {
+    const dirname = require('path').dirname(filePath);
+    if (fs.existsSync(dirname)) {
         return true;
     }
     try {
@@ -45,7 +52,6 @@ async function getAPI(client, apiId, version, apiType = undefined) {
         format,
         exportParam = "true"
     );
-    console.log({ result: result.properties.value.link })
     const swaggerUrl = result.properties.value.link;
     return swaggerUrl;
 }
@@ -76,7 +82,6 @@ async function exportAndImportAPIs() {
             let swaggerUrl = await getAPI(client, apiId, 'v3', apiType);
             // Fetch the Swagger JSON from the export link
             let swaggerResponse = await axios.get(swaggerUrl);
-            console.log(swaggerResponse.status)
             if (![200, 304].includes(swaggerResponse.status)) {
                 console.log(`Failed exporting as v3, trying v2`);
                 swaggerUrl = await getAPI(client, apiId, 'v2', apiType);
@@ -155,4 +160,5 @@ async function importToAPIConnect(swaggerContent) {
 }
 
 // Start the export and import process
-exportAndImportAPIs().catch(console.error);
+ensureDirectoryExistence(`./${serviceName}_documents/`);
+// exportAndImportAPIs().catch(console.error);
