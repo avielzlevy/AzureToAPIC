@@ -1,5 +1,5 @@
 const { ApiManagementClient } = require("@azure/arm-apimanagement");
-const { DefaultAzureCredential } = require("@azure/identity");
+const { DefaultAzureCredential, InteractiveBrowserCredential } = require("@azure/identity");
 const axios = require('axios');
 const fs = require('fs');
 require('dotenv').config();  // To use environment variables from a .env file
@@ -22,11 +22,16 @@ function ensureDirectoryExistence(filePath) {
 // Updated exportAndImportAPIs function
 async function exportAndImportAPIs() {
     // const credential = new DefaultAzureCredential();
-    const credential = new InteractiveBrowserCredential({
-        tenantId: "<YOUR_TENANT_ID>",
-        clientId: "<YOUR_CLIENT_ID>",
-      });
-    console.log({credential})
+    // const credential = new InteractiveBrowserCredential({
+    //     tenantId: "<YOUR_TENANT_ID>",
+    //     clientId: "<YOUR_CLIENT_ID>",
+    // });
+    const credential = new ClientSecretCredential(
+        "<YOUR_TENANT_ID>",
+        "<YOUR_CLIENT_ID>",
+        "<YOUR_CLIENT_SECRET>"
+    );
+    console.log({ credential })
     const client = new ApiManagementClient(credential, subscriptionId);
 
     // List all APIs in the API Management service
@@ -34,7 +39,7 @@ async function exportAndImportAPIs() {
     for await (let item of client.api.listByService(resourceGroupName, serviceName)) {
         apis.push(item);
     }
-    console.log({apis})
+    console.log({ apis })
     for (const api of apis) {
         const apiId = api.name;
         const format = "swagger-link";
