@@ -21,7 +21,11 @@ function ensureDirectoryExistence(filePath) {
 
 // Updated exportAndImportAPIs function
 async function exportAndImportAPIs() {
-    const credential = new DefaultAzureCredential();
+    // const credential = new DefaultAzureCredential();
+    const credential = new InteractiveBrowserCredential({
+        tenantId: "<YOUR_TENANT_ID>",
+        clientId: "<YOUR_CLIENT_ID>",
+      });
     const client = new ApiManagementClient(credential, subscriptionId);
 
     // List all APIs in the API Management service
@@ -29,6 +33,7 @@ async function exportAndImportAPIs() {
     for await (let item of client.api.listByService(resourceGroupName, serviceName)) {
         apis.push(item);
     }
+    console.log({apis})
     for (const api of apis) {
         const apiId = api.name;
         const format = "swagger-link";
