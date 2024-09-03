@@ -1,16 +1,26 @@
+//SOAP (apiType field)
+//SERVICEURL
+//if not v3 then v2
+//select environment
+//make sure documents is being created
+
 const { ApiManagementClient } = require("@azure/arm-apimanagement");
-const { DefaultAzureCredential, ClientSecretCredential } = require("@azure/identity");
+const { ClientSecretCredential } = require("@azure/identity");
 const axios = require('axios');
 const fs = require('fs');
-const { resolve } = require("path");
-require('dotenv').config();  // To use environment variables from a .env file
 process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;  // Ignore SSL certificate errors
-
-const subscriptionId = process.env["APIMANAGEMENT_SUBSCRIPTION_ID"] || "<YourAzureSubscriptionId>";
-const resourceGroupName = process.env["APIMANAGEMENT_RESOURCE_GROUP"] || "<YourResourceGroupName>";
-const serviceName = process.env["APIMANAGEMENT_SERVICE_NAME"] || "<YourAPIManagementServiceName>";
-const apiConnectBaseUrl = process.env["API_CONNECT_BASE_URL"] || "<YourAPIConnectBaseUrl>";
-const apiConnectOrgName = process.env["API_CONNECT_ORG_NAME"] || "<YourAPIConnectOrgName>";
+const yargs = require('yargs/yargs');
+const { hideBin } = require('yargs/helpers');
+const argv = yargs(hideBin(process.argv)).argv;
+const env = argv.env || 'test';
+console.log(`Environment: ${env}`);
+const envFilePath = env === 'prod' ? '.env.prod' : '.env.test';
+dotenv.config({ path: envFilePath });
+const subscriptionId = process.env["APIMANAGEMENT_SUBSCRIPTION_ID"]
+const resourceGroupName = process.env["APIMANAGEMENT_RESOURCE_GROUP"]
+const serviceName = process.env["APIMANAGEMENT_SERVICE_NAME"]
+const apiConnectBaseUrl = process.env["API_CONNECT_BASE_URL"]
+const apiConnectOrgName = process.env["API_CONNECT_ORG_NAME"]
 
 function ensureDirectoryExistence(filePath) {
     const dirname = require('path').dirname(filePath);
@@ -20,13 +30,23 @@ function ensureDirectoryExistence(filePath) {
     fs.mkdirSync(dirname, { recursive: true });
 }
 
+async function getAPI(apiId,version,apiType=undefined) {
+    const format = version === 'v3' ? 'openapi+json-link' : 'swagger-link ';
+    // const format = version === 'v3' ? 'openapi+json-link' : apiType === 'soap' ? 'wsdl-link' : 'swagger-link';
+    console.log(`Exporting API: ${apiId}`);
+            const result = await client.apiExport.get(
+                resourceGroupName,
+                serviceName,
+                apiId,
+                format,
+                exportParam = "true"
+            );
+            const swaggerUrl = result.properties.value.link;
+            return swaggerUrl;
+}
+
 // Updated exportAndImportAPIs function
 async function exportAndImportAPIs() {
-    // const credential = new DefaultAzureCredential();
-    // const credential = new InteractiveBrowserCredential({
-    //     tenantId: "<YOUR_TENANT_ID>",
-    //     clientId: "<YOUR_CLIENT_ID>",
-    // });
     const credential = new ClientSecretCredential(
         process.env["ARM_TENANT_ID"],
         process.env["ARM_TEST_CLIENT_ID"],
@@ -43,32 +63,26 @@ async function exportAndImportAPIs() {
     console.log({ apis })
     for (const api of apis) {
         const apiId = api.name;
+        const apiType = api.apiType;
         const backendUrl = api.serviceUrl;
         const basePath = api.path;
-        const format = "openapi+json-link";
-        const exportParam = "true";
-
         // Export API to a Swagger link
         try {
-            console.log(`Exporting API: ${apiId}`);
-            const result = await client.apiExport.get(
-                resourceGroupName,
-                serviceName,
-                apiId,
-                format,
-                exportParam
-            );
-            const swaggerUrl = result.properties.value.link;
-
+            let swaggerUrl = await getAPI(apiId,'v3',apiType);
             // Fetch the Swagger JSON from the export link
-            const swaggerResponse = await axios.get(swaggerUrl);
+            let swaggerResponse = await axios.get(swaggerUrl);
+            if(swaggerContent.statusCode !== 200){
+                console.log(`Failed exporting as v3, trying v2`);
+                swaggerUrl = await getAPI(apiId,'v2',apiType);
+                swaggerResponse = await axios.get(swaggerUrl);
+            }
             const swaggerContent = swaggerResponse.data;
-
+            
             // Ensure the directory exists
-            ensureDirectoryExistence('./documents/');
+            ensureDirectoryExistence(`./${serviceName}_documents/`);
 
             // Write Swagger content to a file
-            const filePath = `./documents/${apiId}.json`;
+            const filePath = `./${serviceName}_documents/${apiId}.json`;
             fs.writeFileSync(filePath, JSON.stringify(swaggerContent, null, 2));
             console.log(`Swagger file written to ${filePath}`);
 
