@@ -1,6 +1,16 @@
-const fs = require('fs');  // Import File System module
+const { ApiManagementClient } = require("@azure/arm-apimanagement");
+const { DefaultAzureCredential } = require("@azure/identity");
+const axios = require('axios');
+const fs = require('fs');
+require('dotenv').config();  // To use environment variables from a .env file
+process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;  // Ignore SSL certificate errors
 
-// Add this function to check if the directory exists and create it if it doesn't
+const subscriptionId = process.env["APIMANAGEMENT_SUBSCRIPTION_ID"] || "<YourAzureSubscriptionId>";
+const resourceGroupName = process.env["APIMANAGEMENT_RESOURCE_GROUP"] || "<YourResourceGroupName>";
+const serviceName = process.env["APIMANAGEMENT_SERVICE_NAME"] || "<YourAPIManagementServiceName>";
+const apiConnectBaseUrl = process.env["API_CONNECT_BASE_URL"] || "<YourAPIConnectBaseUrl>";
+const apiConnectOrgName = process.env["API_CONNECT_ORG_NAME"] || "<YourAPIConnectOrgName>";
+
 function ensureDirectoryExistence(filePath) {
     const dirname = require('path').dirname(filePath);
     if (fs.existsSync(dirname)) {
@@ -52,3 +62,60 @@ async function exportAndImportAPIs() {
         }
     }
 }
+
+
+let tokenCache = {
+    token: null,
+    expiresAt: null
+};
+async function APIConnectAuthToken() {
+    try {
+        // Check if token is in cache and not expired
+        if (tokenCache.token && tokenCache.expiresAt && new Date() < tokenCache.expiresAt) {
+            return tokenCache.token;
+        }
+
+        // Token is expired or not available, fetch a new one
+        const response = await axios.post(`${apiConnectBaseUrl}/api/token`, {
+            grant_type: 'password',
+            username: process.env["API_CONNECT_USERNAME"],
+            password: process.env["API_CONNECT_PASSWORD"],
+            realm: process.env["API_CONNECT_REALM"],
+            client_id: process.env["API_CONNECT_CLIENT_ID"],
+            client_secret: process.env["API_CONNECT_CLIENT_SECRET"]
+        });
+
+        if (!response.status.toString().startsWith('2')) {
+            throw new Error(`${response.status} ${response.statusText}`);
+        }
+
+        // Store the token and its expiration time in the cache
+        tokenCache.token = response.data.access_token;
+        tokenCache.expiresAt = new Date(new Date().getTime() + (response.data.expires_in * 1000)); // Calculate expiration time
+
+        return tokenCache.token;
+    } catch (error) {
+        console.error(`Error getting API Connect Auth Token:`, error.message);
+    }
+}
+
+async function importToAPIConnect(swaggerContent) {
+    const { title, version } = swaggerContent.info
+
+    try {
+        const response = await axios.post(`${apiConnectBaseUrl}/api/orgs/${apiConnectOrgName}/drafts/draft-apis`, swaggerContent, {
+            headers: {
+                'Authorization': `Bearer ${await APIConnectAuthToken()}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        if (!response.status.toString().startsWith('2'))
+            throw new Error(`${response.status} ${response.statusText}`);
+        console.log(`Successfully imported API: ${title}:${version} to IBM API Connect`);
+    } catch (error) {
+        console.error(`Error importing API ${title}:${version} to IBM API Connect:`, error.message);
+    }
+}
+
+// Start the export and import process
+exportAndImportAPIs().catch(console.error);
