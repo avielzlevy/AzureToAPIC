@@ -6,12 +6,16 @@ process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;  // Ignore SSL certificate erro
 const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
 const argv = yargs(hideBin(process.argv)).argv;
+//environment parameter
 const env = argv.env || 'test';
 console.log(`Environment: ${env}`);
+//.env file is important and should contain all env variables (ARM_TENANT_ID, ARM_TEST_CLIENT_ID, ARM_TEST_CLIENT_SECRET, APIMANAGEMENT_SUBSCRIPTION_ID, APIMANAGEMENT_RESOURCE_GROUP, APIMANAGEMENT_SERVICE_NAME, API_CONNECT_BASE_URL, API_CONNECT_ORG_NAME, API_CONNECT_USERNAME, API_CONNECT_PASSWORD, API_CONNECT_REALM, API_CONNECT_CLIENT_ID, API_CONNECT_CLIENT_SECRET)
 const envFilePath = env === 'prod' ? '.env.prod' : '.env.test';
 require('dotenv').config({ path: envFilePath });
 let subscriptionId, resourceGroupName;
+//default datos service name can be added as a parameter
 let serviceName = argv.serviceName || 'datos';
+//you can add cases to support other parameters subscriptionId resourceGroupName serviceName
 switch (serviceName) {
     case 'datos':
         subscriptionId = process.env["APIMANAGEMENT_SUBSCRIPTION_ID"]
