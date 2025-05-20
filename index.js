@@ -96,7 +96,7 @@ async function exportAndImportAPIs() {
             fs.writeFileSync(filePath, JSON.stringify(swaggerContent, null, 2));
             console.log(`Swagger file written to ${filePath}`);
 
-            // Import the Swagger JSON to IBM API Connect
+            //! Import the Swagger JSON to IBM API Connect
             // await importToAPIConnect(apiId, swaggerContent);
         } catch (error) {
             console.error(`Error exporting or importing API ${apiId}:`, error.message);
